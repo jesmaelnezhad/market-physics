@@ -1,2 +1,3 @@
-# market-physics
-A Forex pair value predictor based on the behavior of psudo-currency time series
+# Algorithm
+
+#### Load `charts` from the most up-to-date data. Each chart is ...
