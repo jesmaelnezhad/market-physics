@@ -18,7 +18,7 @@ CORRELATION_COEFF_NUM_POINTS = 50
 GROUP_CORRELATED = True
 GROUP_SIZE_THRESHOLD = 4.0/23.0
 ATR_WINDOW_SIZE = 14
-
+PREDICTION_CHANGE_THRESHOLD = 0.0001
 
 periods = [1, 5, 15, 30, 60]
 #periods = [60]
@@ -221,11 +221,15 @@ class PairPrediction:
 
     def init_info(self, last_value):
         self.up = (self.value >= last_value[0])
+        if abs(self.value - last_value[0]) < PREDICTION_CHANGE_THRESHOLD:
+            self.up = None
         self.rate = self.value / last_value[0]
         self.change_rate = abs((self.value - last_value[0]) / last_value[0])
         self.change_range = abs(10000 * (self.value - last_value[0]))
         self.regression = predict_next_linear(last_value)
         self.regress_up = (self.regression >= last_value[0])
+        if abs(self.regression - last_value[0]) < PREDICTION_CHANGE_THRESHOLD:
+            self.regress_up = None
         self.regress_rate = self.regression / last_value[0]
 
 
@@ -341,7 +345,7 @@ class ChartDecomposition:
         STEPS = 20#len(chart.get_pairs())
         STEP = 0
         while STEP < STEPS:
-            M = chart.matrix(WINDOW_SIZE, offset=STEP * MOVE_STEP)
+            M = chart.matrix(WINDOW_SIZE, _offset=STEP * MOVE_STEP)
             self.add_matrix(M)
             STEP += 1
         # do required post processing tasks
@@ -491,13 +495,13 @@ class ChartDecomposition:
         if all values in any row of M are X, scale the predicted column so the value in that row stays X
         '''
         if approach == ErrorNeutralizationApproach.MULTIPLICATION:
-            # find which row has all ones
+            # find which row has all same values (excluding the first element)
             all_one_row_index = None
             all_one_row_value = None
             for i,row in enumerate(M):
                 all_one = True
                 check_value = row[0]
-                for v in row:
+                for v in row[1:]:
                     if v != check_value:
                         all_one = False
                         break
@@ -715,9 +719,13 @@ class Chart:
         self.period = sampling_period
         self.points = []
         self.norm_factors = None
+        self.offset = 0
 
     def __str__(self):
         return str(self.period) + "\t\t" + str(len(self.points))
+
+    def set_offset(self, offset):
+        self.offset = offset
 
     def add_point(self, seq_number, point_value, SCALE_X=True):
         '''
@@ -749,6 +757,7 @@ class Chart:
         '''
         pairs = self.get_pairs()
         points = []
+        # Note: even if offset is set, we clean all the chart here.
         for point in self.points:
             if len(point.y.pairs) == len(pairs):
                 points.append(point)
@@ -760,19 +769,19 @@ class Chart:
         '''
         Returns true if chart has at least two points, and false otherwise
         '''
-        return len(self.points) >= 2
+        return (len(self.points) - self.offset) >= 2
 
     def size(self):
         '''
         Returns the number of points in the chart.
         '''
-        return len(self.points)
+        return len(self.points) - self.offset
 
     def get_last_point(self):
         '''
         Returns the last point in the chart (the newest point, the point with seq_number zero).
         '''
-        return self.points[0]
+        return self.points[0 + self.offset]
 
     def get_pairs(self):
         '''
@@ -802,7 +811,7 @@ class Chart:
             factor = var / avg
             normFactors[pair] = factor
         # 2. normalize each point with the calculated factors
-        for point in self.points:
+        for point in self.points[self.offset:]:
             point.normalize(normFactors)
         # 3. Update the normalization factors kept in the chart
         if self.norm_factors == None:
@@ -819,7 +828,7 @@ class Chart:
         '''
         if self.norm_factors == None:
             return
-        for point in self.points:
+        for point in self.points[self.offset:]:
             point.denormalize(self.norm_factors)
         self.norm_factors = None
 
@@ -827,7 +836,7 @@ class Chart:
         '''
         Take logarithm of all the Y values of the chart points.
         '''
-        for point in self.points:
+        for point in self.points[self.offset:]:
             point.logarithm()
 
     def sub_chart(self, pairs):
@@ -836,7 +845,7 @@ class Chart:
         '''
         result = Chart(self.period)
         # Iterate on all points and only keep the intended pairs
-        for point in self.points:
+        for point in self.points[self.offset:]:
             seq_num = point.x / (-1 * self.period)
             pointValue = PointInfo()
             for pair in pairs:
@@ -850,7 +859,7 @@ class Chart:
         '''
         Returns the intersection of chart's pairs with the given set of pairs
         '''
-        for point in self.points:
+        for point in self.points[self.offset:]:
             pairs = point.y.common_pairs(pairs)
         return pairs
 
@@ -964,7 +973,7 @@ class Chart:
         Returns an array of the point values of the given pair
         '''
         pairResult = []
-        for i in range(0,len(self.points)):
+        for i in range(self.offset,len(self.points)):
             pairResult.append(self.points[i].y.pairs[pair].value)
         return pairResult
 
@@ -984,7 +993,7 @@ class Chart:
         values = np.array(values_)
         return np.mean(values, dtype=np.float64)
 
-    def matrix(self, N, offset=0):
+    def matrix(self, N, _offset=0):
         '''
         Returns a matrix with the N values of all pairs starting from data point at the offset. 
         Each row is the last N values of a pair. So the returning matrix is P x N where P is the number of pairs and N is given.
@@ -993,11 +1002,11 @@ class Chart:
         for pair in self.get_pairs():
             pairResult = []
             for i in range(0,N):
-                pairResult.append(self.points[i+offset].y.pairs[pair].value)
+                pairResult.append(self.points[self.offset + i + _offset].y.pairs[pair].value)
             result.append(pairResult)
         return result
 
-    def range_matrix(self, N, offset=0):
+    def range_matrix(self, N, _offset=0):
         '''
         Returns the matrix of changes in the N points with the given offset from the last.
         '''
@@ -1005,7 +1014,7 @@ class Chart:
         for pair in self.get_pairs():
             pairResult = []
             for i in range(0,N):
-                pairResult.append(self.points[i+offset].y.pairs[pair].range(self.points[i+offset+1].y.pairs[pair]))
+                pairResult.append(self.points[self.offset + i + _offset].y.pairs[pair].range(self.points[ self.offset + i + _offset+1].y.pairs[pair]))
             result.append(pairResult)
         return result
 
@@ -1111,7 +1120,7 @@ class Chart:
         currencies = self.get_currencies()
         # for each point, calculate currency values and create a new point
         result = Chart(self.period)
-        for point in self.points:
+        for point in self.points[self.offset:]:
             # find currency values from point pair values
             currency_values = find_currency_values(currencies, point, currency)
             # create corresponding currency point
@@ -1236,7 +1245,7 @@ def prepare_charts_to_use(file_path, test=False):
             pair_predictions[p].init_info(last_few_columns[i])
         print("\033[1;37;40m" + str(chart.period) + "min\033[0;37;40m\t",end='')
         for p, prediction in pair_predictions.items():
-            print(("\033[1;34;40m B" if prediction.up else "\033[1;31;40m S") + "\033[0;33;40m / \033[0;37;40m" + ("B" if prediction.regress_up else "S") + "\t", end='')
+            print(("\033[1;34;40m B" if prediction.up == True else ( "\033[1;31;40m S" if prediction.up == False else "\033[1;31;40m -") ) + "\033[0;33;40m / \033[0;37;40m" + ("B" if prediction.regress_up else "S") + "\t", end='')
         print("")
     if not test:
         return charts
