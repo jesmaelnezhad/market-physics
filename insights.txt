@@ -1,0 +1,12 @@
+Experiment	Stars only	single no(1min)		single no(5min)		single no(15min)	single no(30min)	single no(60min)	biggest three		smallest three
+All+13		62%		60%			40%			1/1			.			1/1			0%			1/1	
+
+Only 4 independent pairs:	33% (1/3)
+
+**All + 13**, including non-unanimous agreement, regardless of ATR:	50% (13/26)	Total profit in 1 day: 27.80
+
+Stars only experiments:
+Group All	Group 13	Group Independents	Group GBP	Group USD	Group EUR
+?		?		?			?		?		?
+
+Only stars of **all + 13 + independents + groups for GBP, USD, and EUR**, and only if their estimated change is close to ATR range:	?% (/)     Total profit in 1 day: ????

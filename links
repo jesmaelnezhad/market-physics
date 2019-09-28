@@ -1,0 +1,3 @@
+https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=EURUSD&interval=30min&apikey=PEHRYBRLFJNYP2IK&datatype=json
+https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=EURUSD&apikey=PEHRYBRLFJNYP2IK&datatype=json
+https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=EURUSD&interval=1min&apikey=PEHRYBRLFJNYP2IK&datatype=json

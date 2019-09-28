@@ -1,0 +1,8 @@
+Enter the left side of the equation: EUR/USD*USD/JPY
+Enter the right side of the equation: EUR/JPY
+Enter open value for ('EUR', 'USD') : 1.11432
+Enter close value for ('EUR', 'USD') : 1.11386
+Enter open value for ('USD', 'JPY') : 105.389
+Enter close value for ('USD', 'JPY') : 105.411
+Enter open value for ('EUR', 'JPY') : 117.411
+Enter close value for ('EUR', 'JPY') : 117.389

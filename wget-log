@@ -1,0 +1,11 @@
+--2019-09-04 17:13:27--  https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY
+Resolving www.alphavantage.co (www.alphavantage.co)... 54.152.127.232, 34.195.49.195, 34.225.42.2, ...
+Connecting to www.alphavantage.co (www.alphavantage.co)|54.152.127.232|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: unspecified [application/json]
+Saving to: ‘query?function=TIME_SERIES_INTRADAY’
+
+               query?function     [<=>                                             ]       0  --.-KB/s               query?function=TIME_SERIES_IN     [ <=>                                            ]     214  --.-KB/s    in 0s      
+
+2019-09-04 17:13:28 (3.18 MB/s) - ‘query?function=TIME_SERIES_INTRADAY’ saved [214]
+
