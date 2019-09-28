@@ -209,6 +209,9 @@ class PredictionApproach(Enum):
     ALL_EIGENS = 1
     FIRST_EIGEN_ONLY = 2
 
+class ErrorNeutralizationApproach(Enum):
+    MULTIPLICATION = 1
+
 class PairPrediction:
     '''
     Class represents the information predicted for a specific pair
@@ -477,29 +480,42 @@ class ChartDecomposition:
         (eig_value, eig_vector) = self.predict_eigen()
         for i, row in enumerate(M):
             predictions.append( (eig_value * eig_vector[i] - np.dot(np.array(row), np.array(eig_vector[1:]))) / eig_vector[0] )
+        # append prediction to M
         new_M = [[predictions[i]]+row for i,row in enumerate(M)]
+        # neutralize predictions's error by multiplication
+        new_M = self.neutralize_base_error(new_M)
+        return new_M
 
-        # if all values in any row of M are 1, scale the predicted column so the value in that row stays 1
-        # find which row has all ones
-        all_one_row_index = None
-        for i,row in enumerate(M):
-            all_one = True
-            for v in row:
-                if v != 1:
-                    all_one = False
+    def neutralize_base_error(self, M, approach=ErrorNeutralizationApproach.MULTIPLICATION):
+        '''
+        if all values in any row of M are X, scale the predicted column so the value in that row stays X
+        '''
+        if approach == ErrorNeutralizationApproach.MULTIPLICATION:
+            # find which row has all ones
+            all_one_row_index = None
+            all_one_row_value = None
+            for i,row in enumerate(M):
+                all_one = True
+                check_value = row[0]
+                for v in row:
+                    if v != check_value:
+                        all_one = False
+                        break
+                if all_one:
+                    all_one_row_index = i
+                    all_one_row_value = check_value
                     break
-            if all_one:
-                all_one_row_index = i
-                break
-        if all_one_row_index == None:# there is no constant row so no need for scaling
-            return new_M
+            if all_one_row_index == None:# there is no constant row so no need for scaling
+                return M
+            else:
+                # calculate the factor
+                scale_factor = all_one_row_value / M[all_one_row_index][0]
+                # apply the factor
+                for i in range(0, len(M)):
+                    M[i][0] *= scale_factor
+                return M
         else:
-            # calculate the factor
-            scale_factor = 1.0 / new_M[all_one_row_index][0]
-            # apply the factor
-            for i in range(0, len(M)):
-                new_M[i][0] *= scale_factor
-            return new_M
+            return M # for now
 
     def predict_next(self, approach=PredictionApproach.FIRST_EIGEN_ONLY):
         '''
