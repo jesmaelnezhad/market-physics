@@ -299,7 +299,7 @@ class Chart:
         return self.convert_prediction_to_binary(self.predict_next())
     def predict_next_binary_regression(self):
         '''
-        Uses our linear regression for perdiction
+        Uses linear regression for perdiction
         Returns a map from pair to True/False based on whether or not the prediction is increasing or descreasing relative to latest point
         '''
         return self.convert_prediction_to_binary(self.predict_next_regression())
