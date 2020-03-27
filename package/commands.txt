@@ -1,4 +1,14 @@
+# Command to install needed libraries
 pip install --user numpy scipy matplotlib ipython jupyter pandas sympy nose scikit-learn
 
-Momkene dastooresh intori bashe:
+# Pip command could be ...
 python3 -m pip install ...
+
+
+
+#Command to update data:
+python3 update_data.py
+
+
+# Command to run the prediction:
+python3 predict.py
