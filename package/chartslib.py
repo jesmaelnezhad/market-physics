@@ -19,13 +19,17 @@ pairs = ["USDCHF","EURUSD", "AUDCHF", "USDJPY", "GBPUSD", "AUDJPY", "EURAUD", "E
 
 PAIRS_NUMBER = len(pairs)
 
-
+# Decomposes a matrix into its eigen vectors
+# Returns three matrices v, w, v1 where each row of v is an eigen vector, w is a diagonal matrix of eigen values, and v1 is v's inverse.
+# Based on the definition: M = v * w * v1
 def decomposeMatrix(M):
     MA = np.array(M)
     w, v = LA.eig(MA)
     W = np.diag(w)
     v_1 = LA.inv(v)
     return v, W, v_1
+
+# Returns the indexth eigen vector/value of the M
 def calcEigen(M, index):
     v, w, v_1 = decomposeMatrix(M)
     vec = []
@@ -33,13 +37,15 @@ def calcEigen(M, index):
         vec.append(v[i][index])
     return vec, w[index][index]
 
+# Uses linear regression to predict the next value of the given sequence
 def predictNextLinear(sequence):
     x = np.array([i for i in range(0, len(sequence))]).reshape((-1, 1))
     y = np.array(sequence)
     model = LinearRegression().fit(x, y)
     return model.predict([[-1]])[0]
 
-
+# The class which represents a pair (e.g., EURUSD is a pair)
+# Mostly only value is used in the code.
 class PairInfo:
     def __init__(self, value, high, low):
         self.value = value
@@ -54,6 +60,9 @@ class PairInfo:
         self.high = float(f.readline())
         self.low = float(f.readline())
 
+# A point info object, is basically a map from pair to pair info in a certain point of time
+# For example:
+# pointInfoObj.pairs["EURUSD"] => a PairInfo containing information of for EURUSD
 class PointInfo:
     def __init__(self):
         self.pairs = {}
@@ -72,6 +81,8 @@ class PointInfo:
             pairInfo.readFromFile(f)
             self.pairs[pair] = pairInfo
 
+# A point is a (x,y) pair, where x is time (or index in sequence)
+# and y is a PointInfo object
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -87,17 +98,35 @@ class Point:
         new_point_info.readFromFile(f)
         self.y = new_point_info
 
-
+# A Chart object, contains a sequence of points for a certain sampling period.
+# For example, for a 5minute interval, we can aggregate all the information of all the pairs
+# for the past our as 12 points in a chart.
 class Chart:
     def __init__(self, sampling_period):
         self.period = sampling_period
         self.points = []
     def check_consistency(self):
+        '''
+        Makes sure every point in the chart has values for all pairs and is not incomplete
+        '''
         for point in self.points:
             if len(point.y.pairs) != PAIRS_NUMBER:
                 return False
         return True
+    def clean(self):
+        '''
+        Removes any point that does not have the value of all pairs
+        '''
+        new_points = []
+        for p in self.points:
+            if len(p.y.pairs) == PAIRS_NUMBER:
+                new_points.append(p)
+        self.points = new_points
+
     def subChart(self, pairs):
+        '''
+        Returns another chart object for the given subset of pairs from this chart
+        '''
         result = Chart(self.period)
         for point in self.points:
             seq_num = point.x / (-1 * self.period)
@@ -107,28 +136,48 @@ class Chart:
                     pointValue.addPair(pair, pairInfo)
             result.addPoint(seq_num, pointValue)
         return result
-    def clean(self):
-        new_points = []
-        for p in self.points:
-            if len(p.y.pairs) == PAIRS_NUMBER:
-                new_points.append(p)
-        self.points = new_points
     def is_usable(self):
+        '''
+        A chart is usable only if it has at least two points
+        '''
         return len(self.points) >= 2
     def size(self):
+        '''
+        Returns the number of points in the chart
+        '''
         return len(self.points)
     def __str__(self):
         return str(self.period) + "\t\t" + str(len(self.points))
     def addPoint(self, seq_number, pointValue):
+        '''
+        Adds a new point to the chart based on the given sequence number and value
+        '''
         point = Point(-1 * seq_number * self.period, pointValue)
         self.points.append(point)
     def predictEigen(self):
+        '''
+        Suppose we have 5 pairs in each point of the chart. The latest 5 points can be used
+        to form a 5x5 matrix. Call this matrix A0. Now suppose we create a similar matrix
+        except we ignore the latest K points, called AK.
+        Let's call the first eigen vector and the first eigen value of Ai, V1_i, and w1_i.
+        So for the matrix sequence of (A7, A6, A5, A4, A3, A2, A1, A0) we have the corresponding
+        vector sequence of first eigen vectors (V1_7, V1_6, V1_5, ..., V1_0) and the corresponding 
+        value sequence of first eigen values (w1_7, ..., w1_0).
+
+        If a new point arrive, we can form a new matrix (called A-1).
+
+        This function predicts the first eigen vector and value of A-1, (V1_-1, w1_-1), based on
+        the sequence (V1_0, w1_0), (V1_1, w1_1), .... from the past in the chart.
+        '''
         N = self.getNumberOfPairs()
         # calculate eigen values and vectors
         eigenValues = []
         eigenVectors = []
         for pairIndex in range(0, N):
             eigenVectors.append([])
+
+        # Why do we move the window N times if we use linear regression?
+        # Has no reason. The N used in the next line can be changed to any number.
         for offset in range(0, N):
             M = self.lastNValuesMatrixWithOffset(N, offset)
             vec, w = calcEigen(M, 0)
@@ -146,8 +195,16 @@ class Chart:
             vec.append(v_pred)
         return vec, w
     def lastNValuesMatrix(self, N):
+        '''
+        Returns a N * X matrix with values of each point of time in a column.
+        X will be the number of pairs the chart.
+        Column zero of the retuening matrix would be the newest point
+        '''
         return self.lastNValuesMatrixWithOffset(N, 0)
     def lastNValuesMatrixWithOffset(self, N, offset):
+        '''
+        Just like lastNValuesMatrix, only ignores the newst offset points.
+        '''
         result = []
         for pair in self.points[0].y.pairs:
             pairResult = []
@@ -156,68 +213,49 @@ class Chart:
             result.append(pairResult)
         return result
     def getLastPoint(self):
+        '''
+        Returns the newst (the latest) point.
+        '''
         return self.points[0]
     def getNumberOfPairs(self):
+        '''
+        Returns the number of points in the chart
+        '''
         return len(self.getLastPoint().y.pairs)
     def getPairs(self):
+        '''
+        Returns all pairs of the latest point.
+        Basically, returns a list of pairs that are expected to be found in each point (if chart was cleaned).
+        '''
         pairs = []
         for p,_ in self.getLastPoint().y.pairs.items():
             pairs.append(p)
         return pairs
-    def slope(self):
-        return self.slope(0)
-    def slope(self, start_granularity):
-        length_slopes = []
-        lengths = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
-        usable_length = 0
-        for i in range(0, len(lengths)):
-            if lengths[i] < len(self.points):
-                usable_length = i+1
-        lengths = lengths[0:usable_length]
-        for length in lengths:
-            if length >= start_granularity:
-                length_slopes.append(self.slope_for(length))
-        slope = {}
-        #print(usable_length)
-        for pair,_ in length_slopes[0].items():
-            pair_slopes = []
-            for length_index in range(0,len(length_slopes)):
-                length_slope = length_slopes[length_index]
-                if pair not in length_slope.keys():
-                    continue
-                #print(length_slope[pair])
-                pair_slopes.append(length_slope[pair])
-                #print(len(pair_slopes))
-            slope[pair] = self.merge_slopes(pair_slopes)
-        return slope
-    def calc_predicted_y_difference(self, future_sequence_number):
-        x_difference = future_sequence_number * self.period
-        y_difference = {}
-        for pair, slope in self.slope(future_sequence_number).items():
-            y_difference[pair] = x_difference * slope
-        return y_difference
     def calculate_gain(self, new_value, old_value):
+        '''
+        Utility function to return gain/loss in percentages based on the given new and old values
+        '''
         if new_value > old_value:
             return (new_value - old_value) * 100.0 / old_value
         else:
             return (old_value - new_value) * 100.0 / old_value
-    def gain(self):
-        prediction = self.predict_next()
-        pair_gains = {}
-        for pair, pair_prediction in prediction.items():
-            new_value = pair_prediction
-            old_value = self.getLastPoint().y.pairs[pair].value
-            pair_gains[pair] = self.calculate_gain(new_value, old_value)
-        return pair_gains
-    def predict_next_regression(self):
-        M = self.lastNValuesMatrix(self.getNumberOfPairs())
-        pairs = self.getPairs()
-        result = {}
-        for i, pair in enumerate(pairs):
-            result[pair] = predictNextLinear(M[i])
-        return result
     def predict_next(self):
+        '''
+        Returns a dictionary from pairs to the next predicted value for each pair
+        Uses our method to predict the next point that is expected to be added to the chart (main prediction method).
+        '''
+        # predict the next first eigen value/vector
+        # vec => the predicted first eigen vector of the NxN matrix whose first column is the future point
+        # w   => the predicted first eigen value of the NxN matrix whose first column is the future point
         vec, w = self.predictEigen()
+        # Get the last N-1 columns from the chart to form a N-1*N matrix to be used to form the equation
+        # [nextPoint column of Xs to be found | N-1 columns of the last N-1 points] should = to predicted vector * predicted value * inverse of predicted vector
+        # So
+        # New_NxN_Matrix * Predicted_V0 = Predicted_V0 * Predicted_W0
+        #
+        # So if you simplify the equation, the next value for the ith pair should be:
+        # x_i = ( w * vec[i] - (M[i][:] . vec[1:N-1]) ) / vec[0]
+        # 
         M = self.lastNValuesMatrix(self.getNumberOfPairs()-1)
         predictions = []
         for i, seq in enumerate(M):
@@ -231,11 +269,44 @@ class Chart:
         for i, pair in enumerate(pairs):
             result[pair] = predictions[i]
         return result
+    def gain(self):
+        '''
+        Returns a map from pairs to predicted gain/loss percentage values
+        Calculates the predicted gain if we use our prediction method for predicting the next value for each pair
+        ''' 
+        prediction = self.predict_next()
+        pair_gains = {}
+        for pair, pair_prediction in prediction.items():
+            new_value = pair_prediction
+            old_value = self.getLastPoint().y.pairs[pair].value
+            pair_gains[pair] = self.calculate_gain(new_value, old_value)
+        return pair_gains
+    def predict_next_regression(self):
+        '''
+        Predicts the next value for each pair (and returns a dictionary just like predict_next) using linear regression
+        '''
+        M = self.lastNValuesMatrix(self.getNumberOfPairs())
+        pairs = self.getPairs()
+        result = {}
+        for i, pair in enumerate(pairs):
+            result[pair] = predictNextLinear(M[i])
+        return result
     def predict_next_binary(self):
+        '''
+        Uses our method for perdiction
+        Returns a map from pair to True/False based on whether or not the prediction is increasing or descreasing relative to latest point
+        '''
         return self.convert_prediction_to_binary(self.predict_next())
     def predict_next_binary_regression(self):
+        '''
+        Uses our linear regression for perdiction
+        Returns a map from pair to True/False based on whether or not the prediction is increasing or descreasing relative to latest point
+        '''
         return self.convert_prediction_to_binary(self.predict_next_regression())
     def convert_prediction_to_binary(self, predictions):
+        '''
+        Helper method to convert prediction to True or False (Higher than now or lower than now)
+        '''
         C = self.lastNValuesMatrix(1)
         results = {}
         i = 0
@@ -246,50 +317,18 @@ class Chart:
                 results[pair] = False
             i += 1
         return results
-    def predict(self, future_sequence_number):
-        y_difference = self.calc_predicted_y_difference(future_sequence_number)
-        prediction = {}
-        for pair, y_diff in y_difference.items():
-            prediction[pair] = self.getLastPoint().y.pairs[pair].value + y_diff
-        return prediction
-    def predict_binary(self, future_sequence_number):
-        y_difference = self.calc_predicted_y_difference(future_sequence_number)
-        prediction = {}
-        for pair, y_diff in y_difference.items():
-            if y_diff < 0:
-                prediction[pair] = False
-            else:
-                prediction[pair] = True
-        return prediction
-
-    def merge_slopes(self, slopes):
-        merge = 0
-        for slope in slopes:
-            merge += slope
-        merge = merge / len(slopes)
-        return merge
-    def slope_for(self, length):
-        if len(self.points) < length:
-            return {}
-        point1 = self.points[length]
-        point2 = self.points[0]
-        return self.slope_between(point1, point2)
-    def slope_between(self, point1, point2):
-        if point1.x == point2.x:
-            return {}
-        slopes = {}
-        for pair,pairInfo in point1.y.pairs.items():
-            y_difference = point2.y.pairs[pair].value - pairInfo.value
-            x_difference = point2.x - point1.x
-            slope = y_difference / x_difference
-            slopes[pair] = slope
-        return slopes
     def writeToFile(self, f):
+        '''
+        Write chart to given file
+        '''
         f.write(str(self.period) + '\n')
         f.write(str(len(self.points)) + '\n')
         for point in self.points:
             point.writeToFile(f)
     def readFromFile(self, f):
+        '''
+        Read chart from the given file
+        '''
         self.period = int(f.readline())
         points_count = int(f.readline())
         for i in range(0, points_count):
