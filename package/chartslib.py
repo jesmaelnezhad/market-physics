@@ -59,6 +59,8 @@ class PairInfo:
         self.value = float(f.readline())
         self.high = float(f.readline())
         self.low = float(f.readline())
+    def __str__(self):
+        return str(self.value)
 
 # A point info object, is basically a map from pair to pair info in a certain point of time
 # For example:
@@ -80,6 +82,12 @@ class PointInfo:
             pairInfo = PairInfo(0,0,0)
             pairInfo.readFromFile(f)
             self.pairs[pair] = pairInfo
+    def __str__(self):
+        result = "{ "
+        for pair, pair_info in self.pairs.items():
+            result += str(pair) + "->" + str(pair_info) + " & "
+        result += " }"
+        return result
 
 # A point is a (x,y) pair, where x is time (or index in sequence)
 # and y is a PointInfo object
@@ -87,8 +95,6 @@ class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-    def __str__(self):
-        return "(" + str(x) + ", " + str(y) + ")"
     def writeToFile(self, f):
         f.write(str(self.x) + '\n')
         self.y.writeToFile(f)
@@ -97,6 +103,8 @@ class Point:
         new_point_info = PointInfo()
         new_point_info.readFromFile(f)
         self.y = new_point_info
+    def __str__(self):
+        return "(" + str(self.x) + ", " + str(self.y) + ")"
 
 # A Chart object, contains a sequence of points for a certain sampling period.
 # For example, for a 5minute interval, we can aggregate all the information of all the pairs
@@ -105,6 +113,7 @@ class Chart:
     def __init__(self, sampling_period):
         self.period = sampling_period
         self.points = []
+
     def check_consistency(self):
         '''
         Makes sure every point in the chart has values for all pairs and is not incomplete
@@ -335,3 +344,8 @@ class Chart:
             new_point = Point(0, 0)
             new_point.readFromFile(f)
             self.points.append(new_point)
+    def __str__(self):
+        result = ""
+        for point in self.points:
+            result += str(point) + " - "
+        return result
