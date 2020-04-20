@@ -10,11 +10,7 @@ from numpy import linalg as LA
 
 
 def prepare_chart(data):
-    #################################################### Prepare empty results map
-    results = {}
-    for pair, pair_data in data.items():
-        results[pair] = True
-    if len(results) == 0:
+    if len(data) == 0:
         return None
     #################################################### Prepare chart
     chart = chartslib.Chart(1) # always using period = 1
